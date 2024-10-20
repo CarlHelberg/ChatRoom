@@ -1,17 +1,18 @@
 import java.io.*;
 import java.net.*;
 
-class ChatHandler implements Runnable {
+public class ChatHandler implements Runnable {
     private Socket socket;
     private PrintWriter out;
     private BufferedReader in;
-    private int clientId;
+    private String username;
     private String color; // The assigned color for this client
+    private int clientId; // The ID of the client
 
-    public ChatHandler(Socket socket, int clientId, String color) {
+    public ChatHandler(Socket socket, String color, int clientId) {
         this.socket = socket;
-        this.clientId = clientId;
         this.color = color;
+        this.clientId = clientId; // Assign the client ID
     }
 
     @Override
@@ -20,15 +21,22 @@ class ChatHandler implements Runnable {
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             out = new PrintWriter(socket.getOutputStream(), true);
 
-            // Notify the client about their assigned color
-            TextColors.colorText(color, "Welcome! You are User#" + clientId);
+            // Notify the client of their assigned user number
+            sendMessage(color, "Welcome! You are User#" + clientId);
+
+            // Read username from the client
+            username = in.readLine(); // The first message should be the username
+            System.out.println("User connected: " + username); // Debugging output
 
             String message;
             // Keep listening for messages from this client
             while ((message = in.readLine()) != null) {
-                System.out.println("User#" + clientId + ": " + message);
-                // Broadcast this message to all other clients
-                ChatServer.broadcastMessage(color, "User#" + clientId + ": " + message, this);
+                // Format the message in the user's color
+                String formattedMessage = TextColors.colorize(color, username + ": " + message);
+                System.out.println(formattedMessage); // Print to the server console in color
+
+                // Broadcast this message to all other clients in the user's color
+                ChatServer.broadcastMessage(color, formattedMessage, this);
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -42,8 +50,13 @@ class ChatHandler implements Runnable {
         }
     }
 
-    // Send a message to the client
+    // ChatHandler sendMessage method
     public void sendMessage(String color, String message) {
-        TextColors.colorText(color, message); // Send formatted message to the client
+        out.println(color + ":" + message); // Use colon as delimiter between color and message
+    }
+
+    // Getter for username (optional if needed)
+    public String getUsername() {
+        return username;
     }
 }
