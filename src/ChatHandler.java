@@ -24,9 +24,12 @@ public class ChatHandler implements Runnable {
             // Notify the client of their assigned user number
             sendMessage(color, "Welcome! You are User#" + clientId);
 
-            // Read username from the client
+            // Read the username from the client
             username = in.readLine(); // The first message should be the username
             System.out.println("User connected: " + username); // Debugging output
+
+            // Send the list of connected usernames to the new client
+            sendMessage("white", ChatServer.getAllUsernames()); // Send the list of connected users
 
             String message;
             // Keep listening for messages from this client
@@ -55,7 +58,7 @@ public class ChatHandler implements Runnable {
         out.println(color + ":" + message); // Use colon as delimiter between color and message
     }
 
-    // Getter for username (optional if needed)
+    // Getter for username
     public String getUsername() {
         return username;
     }
