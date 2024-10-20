@@ -3,18 +3,24 @@ import java.net.*;
 import java.util.*;
 
 public class ChatServer {
-    private static Set<ChatHandler> clientHandlers = new HashSet<>();
-    private static int clientIdCounter = 0;
+    private static List<ChatHandler> clientHandlers = new ArrayList<>();
+    private static final String[] colors = {"red", "green", "yellow", "blue", "purple", "cyan", "white"}; // Color names
+    private static Map<String, Integer> colorUsage = new HashMap<>(); // To track how often each color is used
 
     public static void main(String[] args) {
-        int port = 12345; // Port number for the server to listen on
-        try (ServerSocket serverSocket = new ServerSocket(port)) {
-            System.out.println("Chat server started on port " + port);
+        try (ServerSocket serverSocket = new ServerSocket(12345)) {
+            System.out.println("Chat server started...");
+
+            // Initialize color usage map
+            for (String color : colors) {
+                colorUsage.put(color, 0); // Set initial usage count for each color to 0
+            }
 
             while (true) {
                 Socket clientSocket = serverSocket.accept();
-                clientIdCounter++;
-                ChatHandler handler = new ChatHandler(clientSocket, clientIdCounter);
+                int clientId = clientHandlers.size() + 1; // Assign unique client ID
+                String assignedColor = assignColor(); // Assign least-used color
+                ChatHandler handler = new ChatHandler(clientSocket, clientId, assignedColor);
                 clientHandlers.add(handler);
                 new Thread(handler).start();
             }
@@ -23,66 +29,38 @@ public class ChatServer {
         }
     }
 
-    // Broadcasts a message to all connected clients
-    public static void broadcastMessage(String message, ChatHandler sender) {
+    // Assign the least-used color, or random if all are equally used
+    private static String assignColor() {
+        int minUsage = Collections.min(colorUsage.values()); // Find the minimum usage count
+        List<String> leastUsedColors = new ArrayList<>();
+
+        // Collect all colors with the minimum usage count
+        for (Map.Entry<String, Integer> entry : colorUsage.entrySet()) {
+            if (entry.getValue() == minUsage) {
+                leastUsedColors.add(entry.getKey());
+            }
+        }
+
+        // Select a random color from the least-used ones if multiple are available
+        String selectedColor = leastUsedColors.get(new Random().nextInt(leastUsedColors.size()));
+
+        // Update usage count for the selected color
+        colorUsage.put(selectedColor, colorUsage.get(selectedColor) + 1);
+
+        return selectedColor;
+    }
+
+    // Broadcast message to all clients except the sender
+    public static void broadcastMessage(String color, String message, ChatHandler sender) {
         for (ChatHandler handler : clientHandlers) {
             if (handler != sender) {
-                handler.sendMessage(message);
+                handler.sendMessage(color, message);
             }
         }
     }
 
-    // Removes a client from the handler set
+    // Remove a client handler when they disconnect
     public static void removeClient(ChatHandler handler) {
         clientHandlers.remove(handler);
-    }
-}
-
-// Handles individual client communication
-class ChatHandler implements Runnable {
-    private Socket socket;
-    private PrintWriter out;
-    private BufferedReader in;
-    private int clientId;
-
-    public ChatHandler(Socket socket, int clientId) {
-        this.socket = socket;
-        this.clientId = clientId;
-    }
-
-    @Override
-    public void run() {
-        try {
-            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            out = new PrintWriter(socket.getOutputStream(), true);
-
-            out.println("Welcome! You are User#" + clientId);
-            String message;
-
-            while ((message = in.readLine()) != null) {
-                System.out.println("User#" + clientId + ": " + message);
-                ChatServer.broadcastMessage("User#" + clientId + ": " + message, this);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            closeConnection();
-        }
-    }
-
-    // Sends a message to the client
-    public void sendMessage(String message) {
-        out.println(message);
-    }
-
-    // Closes the connection and removes the client from the server's handler set
-    private void closeConnection() {
-        try {
-            socket.close();
-            ChatServer.removeClient(this);
-            System.out.println("User#" + clientId + " has disconnected.");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
     }
 }

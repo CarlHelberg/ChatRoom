@@ -4,64 +4,101 @@ import java.util.Scanner;
 
 public class ChatClient {
     private Socket socket;
-    private PrintWriter out;
     private BufferedReader in;
+    private PrintWriter out;
+    private String username;
+    private String color;
 
     public ChatClient(String serverAddress, int port) {
         try {
-            socket = new Socket(serverAddress, port);
-            out = new PrintWriter(socket.getOutputStream(), true);
-            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            socket = new Socket(serverAddress, port); // Connect to server
+            in = new BufferedReader(new InputStreamReader(socket.getInputStream())); // For receiving messages
+            out = new PrintWriter(socket.getOutputStream(), true); // For sending messages
 
-            System.out.println("Connected to the chat server");
-
-            // Thread for receiving messages from the server
-            new Thread(new ReceiveMessages()).start();
-
-            // Reading messages from the console and sending to the server
             Scanner scanner = new Scanner(System.in);
-            String message;
-            while (true) {
-                message = scanner.nextLine();
-                if (message.equalsIgnoreCase("exit")) {
-                    closeConnection();
-                    break;
-                }
-                out.println(message);
-            }
+
+            // Initial connection message from the server, containing user color
+            String welcomeMessage = in.readLine();
+            System.out.println(welcomeMessage); // Display welcome message with assigned color
+
+            // Extract the user's color from the welcome message (optional parsing if needed)
+            this.color = extractColorFromMessage(welcomeMessage);
+
+            System.out.print("Enter your username: ");
+            username = scanner.nextLine();
+
+            // Start a thread to listen for messages from the server
+            new Thread(new IncomingMessageHandler()).start();
+
+            // Start sending messages to the server
+            sendMessageLoop(scanner);
+
         } catch (IOException e) {
-            e.printStackTrace();
+            System.err.println("Error connecting to server: " + e.getMessage());
         }
     }
 
-    // Thread to handle incoming messages from the server
-    private class ReceiveMessages implements Runnable {
+    // Main loop to read user input and send messages to the server
+    private void sendMessageLoop(Scanner scanner) {
+        while (true) {
+            System.out.print("You: ");
+            String message = scanner.nextLine(); // Read user input
+
+            if (message.equalsIgnoreCase("/quit")) {
+                break; // Exit the loop if the user types /quit
+            }
+
+            // Send message to the server with the user's color
+            sendMessage(message);
+        }
+
+        // Close resources when exiting
+        closeConnection();
+    }
+
+    // Send a message to the server
+    private void sendMessage(String message) {
+        out.println(message); // Send raw message to the server (color is handled on server-side)
+    }
+
+    // Extract the user's color from the welcome message (for customization)
+    private String extractColorFromMessage(String message) {
+        // Example parsing, assumes format "Welcome! You are User#ID [color]"
+        String[] parts = message.split("\\[|\\]"); // Splits on brackets if needed
+        return parts.length > 1 ? parts[1] : "white"; // Default to white if no color found
+    }
+
+    // Close the socket and resources
+    private void closeConnection() {
+        try {
+            in.close();
+            out.close();
+            socket.close();
+        } catch (IOException e) {
+            System.err.println("Error closing connection: " + e.getMessage());
+        }
+    }
+
+    // Handle incoming messages from the server
+    private class IncomingMessageHandler implements Runnable {
         @Override
         public void run() {
             try {
-                String messageFromServer;
-                while ((messageFromServer = in.readLine()) != null) {
-                    System.out.println(messageFromServer);
+                String serverMessage;
+                // Continuously listen for messages from the server
+                while ((serverMessage = in.readLine()) != null) {
+                    System.out.println(serverMessage); // Display message with color formatting
                 }
             } catch (IOException e) {
-                e.printStackTrace();
+                System.err.println("Error reading messages from server: " + e.getMessage());
             }
-        }
-    }
-
-    // Close the client connection
-    private void closeConnection() {
-        try {
-            socket.close();
-            System.out.println("Disconnected from the server.");
-        } catch (IOException e) {
-            e.printStackTrace();
         }
     }
 
     public static void main(String[] args) {
-        String serverAddress = "localhost";
-        int port = 12345;
-        new ChatClient(serverAddress, port);
+        String serverAddress = "localhost"; // Change this to the server's address
+        int port = 12345; // Same port as the server
+
+        new ChatClient(serverAddress, port); // Start the client
     }
 }
